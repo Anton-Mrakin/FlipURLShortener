@@ -1,0 +1,16 @@
+package com.mrakin.infra.rest.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import org.hibernate.validator.constraints.URL;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class UrlRequestDto {
+    @NotBlank(message = "URL cannot be empty")
+    @URL(message = "Invalid URL format")
+    private String originalUrl;
+}
