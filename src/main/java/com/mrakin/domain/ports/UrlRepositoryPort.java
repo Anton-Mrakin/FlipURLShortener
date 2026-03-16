@@ -8,4 +8,6 @@ public interface UrlRepositoryPort {
     Optional<Url> findByShortCode(String shortCode);
     Optional<Url> findByOriginalUrl(String originalUrl);
     long count();
+    void deleteOldest();
+    void updateLastAccessed(String shortCode);
 }

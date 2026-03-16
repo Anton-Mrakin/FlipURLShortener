@@ -10,4 +10,5 @@ import org.springframework.stereotype.Repository;
 public interface JpaUrlRepository extends JpaRepository<UrlEntity, UUID> {
     Optional<UrlEntity> findByShortCode(String shortCode);
     Optional<UrlEntity> findByOriginalUrl(String originalUrl);
+    Optional<UrlEntity> findFirstByOrderByLastAccessedAsc();
 }

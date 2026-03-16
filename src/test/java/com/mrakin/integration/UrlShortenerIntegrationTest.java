@@ -25,10 +25,14 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
 @SpringBootTest
@@ -62,17 +66,14 @@ class UrlShortenerIntegrationTest {
     @Value("${app.test.threads:100}")
     private int threadCount;
 
-    @Value("${app.test.latency.shorten:10.0}")
-    private double shortenLatencyThreshold;
+    @Value("${app.test.shorten-probability:0.2}")
+    private double shortenProbability;
 
-    @Value("${app.test.latency.get:3.0}")
-    private double getLatencyThreshold;
+    @Value("${app.test.latency-threshold:200.0}")
+    private double latencyThreshold;
 
-    @Value("${app.test.throughput.shorten:100.0}")
-    private double shortenThroughputThreshold;
-
-    @Value("${app.test.throughput.get:300.0}")
-    private double getThroughputThreshold;
+    @Value("${app.test.throughput-threshold:500.0}")
+    private double throughputThreshold;
 
     @Test
     void testShortenAndRetrieveUrl() throws Exception {
@@ -103,75 +104,69 @@ class UrlShortenerIntegrationTest {
     void testPerformance() throws Exception {
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);
         CountDownLatch latch = new CountDownLatch(iterations);
+        CopyOnWriteArrayList<String> shortCodes = new CopyOnWriteArrayList<>();
 
-        long startShorten = System.currentTimeMillis();
+        // 1. Initial data for reading
+        for (int i = 0; i < 10; i++) {
+            String url = "https://initial.com/" + i + "_" + UUID.randomUUID();
+            MvcResult result = mockMvc.perform(post("/api/v1/urls/shorten")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(new UrlRequestDto(url))))
+                    .andExpect(status().isOk())
+                    .andReturn();
+            String sc = objectMapper.readValue(result.getResponse().getContentAsString(), UrlResponseDto.class).getShortCode();
+            shortCodes.add(sc);
+        }
+
+        AtomicLong totalLatency = new AtomicLong(0);
+        AtomicLong shortenCount = new AtomicLong(0);
+        AtomicLong getCount = new AtomicLong(0);
+
+        long startTime = System.currentTimeMillis();
+
         for (int i = 0; i < iterations; i++) {
-            final int index = i;
             executor.submit(() -> {
                 try {
-                    String url = "https://example.com/" + index;
-                    UrlRequestDto request = new UrlRequestDto(url);
-                    mockMvc.perform(post("/api/v1/urls/shorten")
-                                    .contentType(MediaType.APPLICATION_JSON)
-                                    .content(objectMapper.writeValueAsString(request)))
-                            .andExpect(status().isOk());
+                    long start = System.currentTimeMillis();
+                    if (ThreadLocalRandom.current().nextDouble() < shortenProbability) {
+                        String url = "https://example.com/p/" + UUID.randomUUID();
+                        MvcResult result = mockMvc.perform(post("/api/v1/urls/shorten")
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .content(objectMapper.writeValueAsString(new UrlRequestDto(url))))
+                                .andExpect(status().isOk())
+                                .andReturn();
+                        String sc = objectMapper.readValue(result.getResponse().getContentAsString(), UrlResponseDto.class).getShortCode();
+                        shortCodes.add(sc);
+                        shortenCount.incrementAndGet();
+                    } else {
+                        String sc = shortCodes.get(ThreadLocalRandom.current().nextInt(shortCodes.size()));
+                        mockMvc.perform(get("/api/v1/urls/" + sc))
+                                .andExpect(status().isOk());
+                        getCount.incrementAndGet();
+                    }
+                    long end = System.currentTimeMillis();
+                    totalLatency.addAndGet(end - start);
                 } catch (Exception e) {
-                    log.error("Error during performance shorten test", e);
+                    log.error("Error during performance test", e);
                 } finally {
                     latch.countDown();
                 }
             });
         }
-        latch.await(30, TimeUnit.SECONDS);
-        long endShorten = System.currentTimeMillis();
 
-        long totalTimeShorten = endShorten - startShorten;
-        double avgShorten = (double) totalTimeShorten / iterations;
-        double throughputShorten = (double) iterations / (totalTimeShorten / 1000.0);
-
-        log.info("[DEBUG_LOG] Shorten URLs ({} total, {} threads):", iterations, threadCount);
-        log.info("[DEBUG_LOG] Avg shorten time: {} ms", avgShorten);
-        log.info("[DEBUG_LOG] Shorten throughput: {} req/sec", throughputShorten);
-
-        assertTrue(avgShorten < shortenLatencyThreshold, "Average shorten latency too high: " + avgShorten);
-        assertTrue(throughputShorten > shortenThroughputThreshold, "Shorten throughput too low: " + throughputShorten);
-
-        // Для теста получения возьмем один существующий код
-        String lastUrl = "https://example.com/0";
-        MvcResult lastResult = mockMvc.perform(post("/api/v1/urls/shorten")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new UrlRequestDto(lastUrl))))
-                .andReturn();
-        String shortCode = objectMapper.readValue(lastResult.getResponse().getContentAsString(), UrlResponseDto.class).getShortCode();
-
-        CountDownLatch latchGet = new CountDownLatch(iterations);
-        long startRetrieve = System.currentTimeMillis();
-        for (int i = 0; i < iterations; i++) {
-            executor.submit(() -> {
-                try {
-                    mockMvc.perform(get("/api/v1/urls/" + shortCode))
-                            .andExpect(status().isOk());
-                } catch (Exception e) {
-                    log.error("Error during performance retrieve test", e);
-                } finally {
-                    latchGet.countDown();
-                }
-            });
-        }
-        latchGet.await(30, TimeUnit.SECONDS);
-        long endRetrieve = System.currentTimeMillis();
-
-        long totalTimeGet = endRetrieve - startRetrieve;
-        double avgGet = (double) totalTimeGet / iterations;
-        double throughputGet = (double) iterations / (totalTimeGet / 1000.0);
-
-        log.info("[DEBUG_LOG] Retrieve URLs ({} total, {} threads):", iterations, threadCount);
-        log.info("[DEBUG_LOG] Avg retrieve time: {} ms", avgGet);
-        log.info("[DEBUG_LOG] Retrieve throughput: {} req/sec", throughputGet);
-
+        latch.await(60, TimeUnit.SECONDS);
+        long endTime = System.currentTimeMillis();
         executor.shutdown();
 
-        assertTrue(avgGet < getLatencyThreshold, "Average get latency too high: " + avgGet);
-        assertTrue(throughputGet > getThroughputThreshold, "Retrieve throughput too low: " + throughputGet);
+        double totalDurationSec = (endTime - startTime) / 1000.0;
+        double avgLatency = (double) totalLatency.get() / iterations;
+        double throughput = (double) iterations / totalDurationSec;
+
+        log.info("[DEBUG_LOG] Performance Results (Total Duration: {} s):", totalDurationSec);
+        log.info("[DEBUG_LOG] Workload: Shorten = {}, Get = {}", shortenCount.get(), getCount.get());
+        log.info("[DEBUG_LOG] Overall: Avg Latency = {} ms, Throughput = {} req/sec", avgLatency, throughput);
+
+        assertTrue(avgLatency < latencyThreshold, "Average latency too high: " + avgLatency);
+        assertTrue(throughput > throughputThreshold, "Throughput too low: " + throughput);
     }
 }

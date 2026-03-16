@@ -118,14 +118,23 @@ class UrlUseCaseTest {
     }
 
     @Test
-    void shorten_LimitReached_ShouldThrowException() {
+    void shorten_LimitReached_ShouldDeleteOldestAndSave() {
         // Given
         String url = "https://example.com";
+        String code = "short123";
         shortenUrlUseCase = new ShortenUrlUseCase(urlRepositoryPort, shortCodeGenerator, meterRegistry, 5L);
         when(urlRepositoryPort.findByOriginalUrl(url)).thenReturn(Optional.empty());
         when(urlRepositoryPort.count()).thenReturn(5L);
+        when(shortCodeGenerator.generate(url)).thenReturn(code);
+        when(urlRepositoryPort.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        // When & Then
-        assertThrows(IllegalStateException.class, () -> shortenUrlUseCase.shorten(url));
+        // When
+        Url result = shortenUrlUseCase.shorten(url);
+
+        // Then
+        assertNotNull(result);
+        assertEquals(code, result.getShortCode());
+        verify(urlRepositoryPort).deleteOldest();
+        verify(urlRepositoryPort).save(any());
     }
 }

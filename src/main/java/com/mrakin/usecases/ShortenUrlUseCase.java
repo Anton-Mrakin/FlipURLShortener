@@ -35,8 +35,8 @@ public class ShortenUrlUseCase {
                 .orElseGet(() -> {
                     long currentCount = urlRepositoryPort.count();
                     if (currentCount >= urlLimit) {
-                        log.warn("URL limit reached: {}", urlLimit);
-                        throw new IllegalStateException("Storage limit reached. Max allowed: " + urlLimit);
+                        log.warn("URL limit reached: {}. Deleting oldest entry.", urlLimit);
+                        urlRepositoryPort.deleteOldest();
                     }
                     
                     String shortCode = shortCodeGenerator.generate(originalUrl);
