@@ -11,9 +11,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Url {
-    private String id;
     private String originalUrl;
     private String shortCode;
-    private LocalDateTime createdAt;
-    private LocalDateTime lastAccessed;
 }

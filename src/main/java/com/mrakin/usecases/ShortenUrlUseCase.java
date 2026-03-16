@@ -21,7 +21,7 @@ public class ShortenUrlUseCase {
         this.urlRepositoryPort = urlRepositoryPort;
         this.shortCodeGenerator = shortCodeGenerator;
         this.urlLimit = urlLimit;
-        this.shortenCounter = meterRegistry.counter("url_shorten_requests_total");
+        this.shortenCounter = meterRegistry.counter("url_shorten_requests");
         
         meterRegistry.gauge("url_stored_total", urlRepositoryPort, 
                 UrlRepositoryPort::count);

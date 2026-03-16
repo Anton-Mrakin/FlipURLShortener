@@ -16,7 +16,7 @@ public class GetOriginalUrlUseCase {
     public GetOriginalUrlUseCase(UrlRepositoryPort urlRepositoryPort,
                                  MeterRegistry meterRegistry) {
         this.urlRepositoryPort = urlRepositoryPort;
-        this.getCounter = meterRegistry.counter("url_get_requests_total");
+        this.getCounter = meterRegistry.counter("url_get_requests");
     }
 
     public Url getOriginal(String shortCode) {

@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface JpaUrlRepository extends JpaRepository<UrlEntity, UUID> {
+public interface JpaUrlRepository extends JpaRepository<UrlEntity, String> {
     Optional<UrlEntity> findByShortCode(String shortCode);
     Optional<UrlEntity> findByOriginalUrl(String originalUrl);
     Optional<UrlEntity> findFirstByOrderByLastAccessedAsc();

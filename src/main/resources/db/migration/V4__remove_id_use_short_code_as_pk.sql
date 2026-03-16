@@ -1,0 +1,3 @@
+ALTER TABLE urls DROP CONSTRAINT urls_pkey;
+ALTER TABLE urls DROP COLUMN id;
+ALTER TABLE urls ADD PRIMARY KEY (short_code);

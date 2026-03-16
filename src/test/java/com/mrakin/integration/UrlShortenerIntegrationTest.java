@@ -1,20 +1,19 @@
 package com.mrakin.integration;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mrakin.infra.rest.dto.UrlRequestDto;
-import com.mrakin.infra.rest.dto.UrlResponseDto;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -58,10 +57,43 @@ class UrlShortenerIntegrationTest {
     private MockMvc mockMvc;
 
     @Autowired
-    private ObjectMapper objectMapper;
+    private ApplicationContext applicationContext;
 
     @Value("${app.test.iterations:1000}")
     private int iterations;
+
+    @Test
+    void testStartupTimeAndProbes() throws Exception {
+        long startupDate = applicationContext.getStartupDate();
+        long now = System.currentTimeMillis();
+        log.info("[DEBUG_LOG] Application context startup date: {}", startupDate);
+        log.info("[DEBUG_LOG] Time since startup: {} ms", now - startupDate);
+
+        // Verify probes
+        mockMvc.perform(get("/actuator/health/liveness"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("\"status\":\"UP\"")));
+
+        mockMvc.perform(get("/actuator/health/readiness"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("\"status\":\"UP\"")));
+    }
+
+    @Test
+    void testMetrics() throws Exception {
+        // Perform some actions to generate metrics
+        testShortenAndRetrieveUrl();
+
+        // Verify metrics
+        MvcResult result = mockMvc.perform(get("/actuator/prometheus"))
+                .andExpect(status().isOk())
+                .andReturn();
+        
+        String content = result.getResponse().getContentAsString();
+        
+        // Let's check for anything related to our app
+        assertTrue(content.contains("url"), "Prometheus should contain 'url' metrics. Content: " + content);
+    }
 
     @Value("${app.test.threads:100}")
     private int threadCount;
@@ -78,26 +110,21 @@ class UrlShortenerIntegrationTest {
     @Test
     void testShortenAndRetrieveUrl() throws Exception {
         String originalUrl = "https://example.com/very/long/url/that/needs/shortening";
-        UrlRequestDto request = new UrlRequestDto(originalUrl);
 
         // 1. Shorten
         MvcResult result = mockMvc.perform(post("/api/v1/urls/shorten")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .content(originalUrl))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.originalUrl").value(originalUrl))
-                .andExpect(jsonPath("$.shortCode").exists())
                 .andReturn();
 
-        String content = result.getResponse().getContentAsString();
-        UrlResponseDto response = objectMapper.readValue(content, UrlResponseDto.class);
-        String shortCode = response.getShortCode();
+        String shortCode = result.getResponse().getContentAsString();
+        assertTrue(shortCode.length() > 0);
 
         // 2. Retrieve
         mockMvc.perform(get("/api/v1/urls/" + shortCode))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.originalUrl").value(originalUrl))
-                .andExpect(jsonPath("$.shortCode").value(shortCode));
+                .andExpect(content().string(originalUrl));
     }
 
     @Test
@@ -110,11 +137,11 @@ class UrlShortenerIntegrationTest {
         for (int i = 0; i < 10; i++) {
             String url = "https://initial.com/" + i + "_" + UUID.randomUUID();
             MvcResult result = mockMvc.perform(post("/api/v1/urls/shorten")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(new UrlRequestDto(url))))
+                            .contentType(MediaType.TEXT_PLAIN)
+                            .content(url))
                     .andExpect(status().isOk())
                     .andReturn();
-            String sc = objectMapper.readValue(result.getResponse().getContentAsString(), UrlResponseDto.class).getShortCode();
+            String sc = result.getResponse().getContentAsString();
             shortCodes.add(sc);
         }
 
@@ -131,11 +158,11 @@ class UrlShortenerIntegrationTest {
                     if (ThreadLocalRandom.current().nextDouble() < shortenProbability) {
                         String url = "https://example.com/p/" + UUID.randomUUID();
                         MvcResult result = mockMvc.perform(post("/api/v1/urls/shorten")
-                                        .contentType(MediaType.APPLICATION_JSON)
-                                        .content(objectMapper.writeValueAsString(new UrlRequestDto(url))))
+                                        .contentType(MediaType.TEXT_PLAIN)
+                                        .content(url))
                                 .andExpect(status().isOk())
                                 .andReturn();
-                        String sc = objectMapper.readValue(result.getResponse().getContentAsString(), UrlResponseDto.class).getShortCode();
+                        String sc = result.getResponse().getContentAsString();
                         shortCodes.add(sc);
                         shortenCount.incrementAndGet();
                     } else {
