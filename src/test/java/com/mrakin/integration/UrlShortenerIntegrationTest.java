@@ -1,6 +1,7 @@
 package com.mrakin.integration;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -122,7 +123,7 @@ class UrlShortenerIntegrationTest {
 
     @Test
     void testMetrics() throws Exception {
-        testShortenAndRetrieveUrl();
+        testBaseShortenAndRetrieveUrl();
 
         mockMvc.perform(get("/actuator/health/liveness"))
                 .andExpect(status().isOk())
@@ -158,7 +159,9 @@ class UrlShortenerIntegrationTest {
     private double throughputThreshold;
 
     @Test
-    void testShortenAndRetrieveUrl() throws Exception {
+    void testBaseShortenAndRetrieveUrl() throws Exception {
+        RateLimiter rateLimiter = rateLimiterRegistry.rateLimiter("shortenLimit");
+        rateLimiter.changeLimitForPeriod(100000);
         String originalUrl = "https://example.com/very/long/url/that/needs/shortening";
 
         MvcResult result = mockMvc.perform(post("/api/v1/urls/shorten")
@@ -173,6 +176,48 @@ class UrlShortenerIntegrationTest {
         mockMvc.perform(get("/api/v1/urls/" + shortCode))
                 .andExpect(status().isOk())
                 .andExpect(content().string(originalUrl));
+    }
+
+    @Test
+    void testConcurrentShorten() throws Exception {
+        String originalUrl = "https://concurrent.com/" + UUID.randomUUID();
+        int concurrentThreads = 5;
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch finishLatch = new CountDownLatch(concurrentThreads);
+        ExecutorService executor = Executors.newFixedThreadPool(concurrentThreads);
+        CopyOnWriteArrayList<String> results = new CopyOnWriteArrayList<>();
+
+        for (int i = 0; i < concurrentThreads; i++) {
+            executor.submit(() -> {
+                try {
+                    startLatch.await();
+                    MvcResult result = mockMvc.perform(post("/api/v1/urls/shorten")
+                                    .contentType(MediaType.TEXT_PLAIN)
+                                    .content(originalUrl))
+                            .andReturn();
+                    if (result.getResponse().getStatus() == 200) {
+                        results.add(result.getResponse().getContentAsString());
+                    } else {
+                        log.error("Request failed with status: {} and body: {}", 
+                                result.getResponse().getStatus(), result.getResponse().getContentAsString());
+                    }
+                } catch (Exception e) {
+                    log.error("Error in concurrent shorten test", e);
+                } finally {
+                    finishLatch.countDown();
+                }
+            });
+        }
+
+        startLatch.countDown();
+        finishLatch.await(30, TimeUnit.SECONDS);
+        executor.shutdown();
+
+        assertEquals(concurrentThreads, results.size(), "All threads should have received a short code");
+        String firstCode = results.get(0);
+        for (String code : results) {
+            assertEquals(firstCode, code, "All threads should have received the same short code for the same URL");
+        }
     }
 
     @Test

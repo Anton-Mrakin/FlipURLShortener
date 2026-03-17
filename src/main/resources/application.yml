@@ -49,6 +49,14 @@ resilience4j:
         exponential-backoff-multiplier: 2
         retry-exceptions:
           - org.springframework.orm.ObjectOptimisticLockingFailureException
+      shortenRetry:
+        max-attempts: 5
+        wait-duration: 100ms
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - org.springframework.dao.DataIntegrityViolationException
+          - org.springframework.orm.ObjectOptimisticLockingFailureException
   ratelimiter:
     instances:
       shortenLimit:
