@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import com.mrakin.domain.exception.UrlNotFoundException;
 import com.mrakin.domain.model.Url;
 import com.mrakin.domain.ports.UrlRepositoryPort;
+import com.mrakin.usecases.generator.ShortCodeGenerator;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.util.Optional;
@@ -54,15 +55,12 @@ class UrlUseCaseTest {
         "https://openai.com, open789"
     })
     void shorten_NewUrl_ShouldSaveAndReturn(String originalUrl, String expectedShortCode) {
-        // Given
         when(urlRepositoryPort.findByOriginalUrl(originalUrl)).thenReturn(Optional.empty());
         when(urlRepositoryPort.save(any(Url.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(shortCodeGenerator.generate(originalUrl)).thenReturn(expectedShortCode);
 
-        // When
         Url result = shortenUrlUseCase.shorten(originalUrl);
 
-        // Then
         assertNotNull(result);
         assertEquals(originalUrl, result.getOriginalUrl());
         assertEquals(expectedShortCode, result.getShortCode());
@@ -71,7 +69,6 @@ class UrlUseCaseTest {
 
     @Test
     void shorten_ExistingUrl_ShouldReturnFromDb() {
-        // Given
         String originalUrl = "https://existing.com";
         Url existingUrl = Url.builder()
                 .originalUrl(originalUrl)
@@ -79,10 +76,8 @@ class UrlUseCaseTest {
                 .build();
         when(urlRepositoryPort.findByOriginalUrl(originalUrl)).thenReturn(Optional.of(existingUrl));
 
-        // When
         Url result = shortenUrlUseCase.shorten(originalUrl);
 
-        // Then
         assertEquals(existingUrl, result);
         verify(urlRepositoryPort, never()).save(any());
     }
@@ -93,33 +88,27 @@ class UrlUseCaseTest {
         "short2, https://url2.com"
     })
     void getOriginal_ExistingCode_ShouldReturnUrl(String shortCode, String originalUrl) {
-        // Given
         Url url = Url.builder()
                 .originalUrl(originalUrl)
                 .shortCode(shortCode)
                 .build();
         when(urlRepositoryPort.findByShortCode(shortCode)).thenReturn(Optional.of(url));
 
-        // When
         Url result = getOriginalUrlUseCase.getOriginal(shortCode);
 
-        // Then
         assertEquals(originalUrl, result.getOriginalUrl());
     }
 
     @Test
     void getOriginal_NonExistingCode_ShouldThrowException() {
-        // Given
         String shortCode = "notfound";
         when(urlRepositoryPort.findByShortCode(shortCode)).thenReturn(Optional.empty());
 
-        // When & Then
         assertThrows(UrlNotFoundException.class, () -> getOriginalUrlUseCase.getOriginal(shortCode));
     }
 
     @Test
     void shorten_LimitReached_ShouldDeleteOldestAndSave() {
-        // Given
         String url = "https://example.com";
         String code = "short123";
         shortenUrlUseCase = new ShortenUrlUseCase(urlRepositoryPort, shortCodeGenerator, meterRegistry, 5L);
@@ -128,10 +117,8 @@ class UrlUseCaseTest {
         when(shortCodeGenerator.generate(url)).thenReturn(code);
         when(urlRepositoryPort.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        // When
         Url result = shortenUrlUseCase.shorten(url);
 
-        // Then
         assertNotNull(result);
         assertEquals(code, result.getShortCode());
         verify(urlRepositoryPort).deleteOldest();

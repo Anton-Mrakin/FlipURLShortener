@@ -1,12 +1,15 @@
 package com.mrakin.integration;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.github.resilience4j.ratelimiter.RateLimiter;
+import io.github.resilience4j.ratelimiter.RateLimiterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,15 +44,13 @@ import java.util.concurrent.atomic.AtomicLong;
 class UrlShortenerIntegrationTest {
 
     @Autowired
-    private io.github.resilience4j.ratelimiter.RateLimiterRegistry rateLimiterRegistry;
+    private RateLimiterRegistry rateLimiterRegistry;
 
     @Test
     void testRateLimiter() throws Exception {
-        io.github.resilience4j.ratelimiter.RateLimiter rateLimiter = rateLimiterRegistry.rateLimiter("shortenLimit");
-        // Use a configuration that is very restrictive
+        RateLimiter rateLimiter = rateLimiterRegistry.rateLimiter("shortenLimit");
         rateLimiter.changeLimitForPeriod(1);
         
-        // Exhaust permits until it fails (within current period)
         boolean acquired = true;
         for (int i = 0; i < 50; i++) {
             if (!rateLimiter.acquirePermission()) {
@@ -60,19 +61,17 @@ class UrlShortenerIntegrationTest {
         
         if (acquired) {
              log.warn("Could not exhaust rate limiter permits in testRateLimiter");
-             return; // Skip assertion if we couldn't exhaust it for some reason
+             return;
         }
 
         String originalUrl = "https://example.com/ratelimit";
         
-        // Next request should be rate limited
         mockMvc.perform(post("/api/v1/urls/shorten")
                         .contentType(MediaType.TEXT_PLAIN)
                         .content(originalUrl + "limit"))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(content().string(containsString("Too many requests")));
         
-        // Reset limit for other tests
         rateLimiter.changeLimitForPeriod(10000);
     }
 
@@ -106,13 +105,12 @@ class UrlShortenerIntegrationTest {
         long startupDate = applicationContext.getStartupDate();
         long now = System.currentTimeMillis();
         long startupDuration = now - startupDate;
-        log.info("[DEBUG_LOG] Application context startup date: {}", startupDate);
-        log.info("[DEBUG_LOG] Time since startup: {} ms", startupDuration);
+        log.info("Application context startup date: {}", startupDate);
+        log.info("Time since startup: {} ms", startupDuration);
 
         assertTrue(startupDuration < startupThreshold, 
                 "Startup time too long: " + startupDuration + " ms (threshold: " + startupThreshold + " ms)");
 
-        // Verify probes
         mockMvc.perform(get("/actuator/health/liveness"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("\"status\":\"UP\"")));
@@ -124,10 +122,8 @@ class UrlShortenerIntegrationTest {
 
     @Test
     void testMetrics() throws Exception {
-        // Perform some actions to generate metrics
         testShortenAndRetrieveUrl();
 
-        // 1. Verify health probes
         mockMvc.perform(get("/actuator/health/liveness"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("\"status\":\"UP\"")));
@@ -136,20 +132,16 @@ class UrlShortenerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("\"status\":\"UP\"")));
 
-        // 2. Verify Prometheus metrics
         MvcResult result = mockMvc.perform(get("/actuator/prometheus"))
                 .andExpect(status().isOk())
                 .andReturn();
         
         String content = result.getResponse().getContentAsString();
 
-        // Check for our custom metrics.
-        // Micrometer appends _total to counters. Gauge names are usually preserved with underscores.
         assertTrue(content.contains("url_shorten_requests"), "Missing url_shorten_requests metric");
         assertTrue(content.contains("url_get_requests"), "Missing url_get_requests metric");
         assertTrue(content.contains("url_count"), "Missing url_count gauge metric.");
 
-        // Verify standard metrics
         assertTrue(content.contains("jvm_memory_used_bytes"), "Missing JVM metrics");
     }
 
@@ -169,7 +161,6 @@ class UrlShortenerIntegrationTest {
     void testShortenAndRetrieveUrl() throws Exception {
         String originalUrl = "https://example.com/very/long/url/that/needs/shortening";
 
-        // 1. Shorten
         MvcResult result = mockMvc.perform(post("/api/v1/urls/shorten")
                         .contentType(MediaType.TEXT_PLAIN)
                         .content(originalUrl))
@@ -177,9 +168,8 @@ class UrlShortenerIntegrationTest {
                 .andReturn();
 
         String shortCode = result.getResponse().getContentAsString();
-        assertTrue(shortCode.length() > 0);
+        assertFalse(shortCode.isEmpty());
 
-        // 2. Retrieve
         mockMvc.perform(get("/api/v1/urls/" + shortCode))
                 .andExpect(status().isOk())
                 .andExpect(content().string(originalUrl));
@@ -187,69 +177,68 @@ class UrlShortenerIntegrationTest {
 
     @Test
     void testPerformance() throws Exception {
-        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
-        CountDownLatch latch = new CountDownLatch(iterations);
-        CopyOnWriteArrayList<String> shortCodes = new CopyOnWriteArrayList<>();
-
-        // 1. Initial data for reading
-        for (int i = 0; i < 100; i++) {
-            String url = "https://initial.com/" + i + "_" + UUID.randomUUID();
-            MvcResult result = mockMvc.perform(post("/api/v1/urls/shorten")
-                            .contentType(MediaType.TEXT_PLAIN)
-                            .content(url))
-                    .andExpect(status().isOk())
-                    .andReturn();
-            String sc = result.getResponse().getContentAsString();
-            shortCodes.add(sc);
-        }
-
-        AtomicLong totalLatency = new AtomicLong(0);
-        AtomicLong shortenCount = new AtomicLong(0);
-        AtomicLong getCount = new AtomicLong(0);
-
-        long startTime = System.currentTimeMillis();
-
-        for (int i = 0; i < iterations; i++) {
-            executor.submit(() -> {
-                try {
-                    long start = System.currentTimeMillis();
-                    if (ThreadLocalRandom.current().nextDouble() < shortenProbability) {
-                        String url = "https://example.com/p/" + UUID.randomUUID();
-                        MvcResult result = mockMvc.perform(post("/api/v1/urls/shorten")
-                                        .contentType(MediaType.TEXT_PLAIN)
-                                        .content(url))
-                                .andExpect(status().isOk())
-                                .andReturn();
-                        String sc = result.getResponse().getContentAsString();
-                        shortCodes.add(sc);
-                        shortenCount.incrementAndGet();
-                    } else {
-                        String sc = shortCodes.get(ThreadLocalRandom.current().nextInt(shortCodes.size()));
-                        mockMvc.perform(get("/api/v1/urls/" + sc))
-                                .andExpect(status().isOk());
-                        getCount.incrementAndGet();
+        AtomicLong totalLatency;
+        AtomicLong shortenCount;
+        AtomicLong getCount;
+        long startTime;
+        long endTime;
+        try (ExecutorService executor = Executors.newFixedThreadPool(threadCount)) {
+            CountDownLatch latch = new CountDownLatch(iterations);
+            CopyOnWriteArrayList<String> shortCodes = new CopyOnWriteArrayList<>();
+            for (int i = 0; i < 100; i++) {
+                String url = "https://initial.com/" + i + "_" + UUID.randomUUID();
+                MvcResult result = mockMvc.perform(post("/api/v1/urls/shorten")
+                                .contentType(MediaType.TEXT_PLAIN)
+                                .content(url))
+                        .andExpect(status().isOk())
+                        .andReturn();
+                String sc = result.getResponse().getContentAsString();
+                shortCodes.add(sc);
+            }
+            totalLatency = new AtomicLong(0);
+            shortenCount = new AtomicLong(0);
+            getCount = new AtomicLong(0);
+            startTime = System.currentTimeMillis();
+            for (int i = 0; i < iterations; i++) {
+                executor.submit(() -> {
+                    try {
+                        long start = System.currentTimeMillis();
+                        if (ThreadLocalRandom.current().nextDouble() < shortenProbability) {
+                            String url = "https://example.com/p/" + UUID.randomUUID();
+                            MvcResult result = mockMvc.perform(post("/api/v1/urls/shorten")
+                                            .contentType(MediaType.TEXT_PLAIN)
+                                            .content(url))
+                                    .andExpect(status().isOk())
+                                    .andReturn();
+                            String sc = result.getResponse().getContentAsString();
+                            shortCodes.add(sc);
+                            shortenCount.incrementAndGet();
+                        } else {
+                            String sc = shortCodes.get(ThreadLocalRandom.current().nextInt(shortCodes.size()));
+                            mockMvc.perform(get("/api/v1/urls/" + sc))
+                                    .andExpect(status().isOk());
+                            getCount.incrementAndGet();
+                        }
+                        long end = System.currentTimeMillis();
+                        totalLatency.addAndGet(end - start);
+                    } catch (Exception e) {
+                        log.error("Error during performance test", e);
+                    } finally {
+                        latch.countDown();
                     }
-                    long end = System.currentTimeMillis();
-                    totalLatency.addAndGet(end - start);
-                } catch (Exception e) {
-                    log.error("Error during performance test", e);
-                } finally {
-                    latch.countDown();
-                }
-            });
+                });
+            }
+            latch.await(60, TimeUnit.SECONDS);
+            endTime = System.currentTimeMillis();
+            executor.shutdown();
         }
-
-        latch.await(60, TimeUnit.SECONDS);
-        long endTime = System.currentTimeMillis();
-        executor.shutdown();
-
         double totalDurationSec = (endTime - startTime) / 1000.0;
         double avgLatency = (double) totalLatency.get() / iterations;
         double throughput = (double) iterations / totalDurationSec;
 
-        log.info("[DEBUG_LOG] Performance Results (Total Duration: {} s):", totalDurationSec);
-        log.info("[DEBUG_LOG] Workload: Shorten = {}, Get = {}", shortenCount.get(), getCount.get());
-        log.info("[DEBUG_LOG] Overall: Avg Latency = {} ms, Throughput = {} req/sec", avgLatency, throughput);
+        log.info("Performance Results (Total Duration: {} s):", totalDurationSec);
+        log.info("Workload: Shorten = {}, Get = {}", shortenCount.get(), getCount.get());
+        log.info("Overall: Avg Latency = {} ms, Throughput = {} req/sec", avgLatency, throughput);
 
         assertTrue(avgLatency < latencyThreshold, "Average latency too high: " + avgLatency);
         assertTrue(throughput > throughputThreshold, "Throughput too low: " + throughput);

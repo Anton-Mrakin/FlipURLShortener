@@ -1,4 +1,6 @@
 app:
+  url-limit: 10000
+  short-code-length: 8
   test:
     iterations: 1000
     threads: 100

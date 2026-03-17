@@ -7,7 +7,10 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 
+import org.springframework.stereotype.Service;
+
 @Slf4j
+@Service
 public class GetOriginalUrlUseCase {
 
     private final UrlRepositoryPort urlRepositoryPort;

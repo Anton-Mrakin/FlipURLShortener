@@ -1,4 +1,4 @@
-package com.mrakin.usecases;
+package com.mrakin.usecases.generator;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -8,11 +8,13 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 
-@Service
-public class ShortCodeGenerator {
+@Service("sha256Generator")
+public class Sha256ShortCodeGenerator implements ShortCodeGenerator {
+
     @Value("${app.short-code-length:8}")
     private int shortCodeLength;
 
+    @Override
     public String generate(String originalUrl) {
         if (originalUrl == null || originalUrl.isBlank()) {
             throw new IllegalArgumentException("URL cannot be null or empty");

@@ -2,11 +2,17 @@ package com.mrakin.usecases;
 
 import com.mrakin.domain.model.Url;
 import com.mrakin.domain.ports.UrlRepositoryPort;
+import com.mrakin.usecases.generator.ShortCodeGenerator;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
 @Slf4j
+@Service
 public class ShortenUrlUseCase {
 
     private final UrlRepositoryPort urlRepositoryPort;
@@ -15,8 +21,10 @@ public class ShortenUrlUseCase {
     private final Counter shortenCounter;
 
     public ShortenUrlUseCase(UrlRepositoryPort urlRepositoryPort,
+                             @Qualifier("selectedShortCodeGenerator")
                              ShortCodeGenerator shortCodeGenerator,
                              MeterRegistry meterRegistry,
+                             @Value("${app.url-limit:10000}")
                              long urlLimit) {
         this.urlRepositoryPort = urlRepositoryPort;
         this.shortCodeGenerator = shortCodeGenerator;
