@@ -1,11 +1,6 @@
 package com.mrakin;
 
-import com.mrakin.domain.ports.UrlRepositoryPort;
-import com.mrakin.usecases.GetOriginalUrlUseCase;
 import com.mrakin.usecases.generator.ShortCodeGenerator;
-import com.mrakin.usecases.ShortenUrlUseCase;
-import io.micrometer.core.instrument.MeterRegistry;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -14,6 +9,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
@@ -24,7 +20,6 @@ import java.util.Map;
 @EnableAsync
 @EnableScheduling
 public class FlipUrlShortenerApplication {
-
     public static void main(String[] args) {
         SpringApplication.run(FlipUrlShortenerApplication.class, args);
     }
@@ -52,5 +47,16 @@ public class FlipUrlShortenerApplication {
         scheduler.setThreadNamePrefix("scheduled-task-");
         scheduler.initialize();
         return scheduler;
+    }
+
+    @Bean(name = "cleanupExecutor")
+    public ThreadPoolTaskExecutor cleanupExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(1);
+        executor.setThreadNamePrefix("cleanup-worker-");
+        executor.initialize();
+        return executor;
     }
 }

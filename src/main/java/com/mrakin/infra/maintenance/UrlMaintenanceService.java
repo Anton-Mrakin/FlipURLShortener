@@ -4,6 +4,7 @@ import com.mrakin.domain.ports.UrlRepositoryPort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,9 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class UrlMaintenanceService {
-
     private final UrlRepositoryPort urlRepositoryPort;
-
     @Value("${app.url-limit:10000}")
     private long urlLimit;
 
@@ -24,6 +23,7 @@ public class UrlMaintenanceService {
      * Timeout is set to 1 minute to prevent hanging.
      */
     @Transactional(timeout = 60)
+    @Async("cleanupExecutor")
     @Scheduled(fixedRateString = "${app.maintenance.rate:PT1M}")
     public void cleanupOldUrls() {
         try {
