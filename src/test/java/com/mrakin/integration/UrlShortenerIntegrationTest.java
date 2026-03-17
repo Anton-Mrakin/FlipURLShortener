@@ -221,6 +221,24 @@ class UrlShortenerIntegrationTest {
     }
 
     @Test
+    void testUrlValidation() throws Exception {
+        // Test empty URL
+        mockMvc.perform(post("/api/v1/urls/shorten")
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .content("   "))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string(containsString("URL cannot be empty")));
+
+        // Test too long URL
+        String longUrl = "http://example.com/" + "a".repeat(2050);
+        mockMvc.perform(post("/api/v1/urls/shorten")
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .content(longUrl))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string(containsString("URL length exceeds maximum limit")));
+    }
+
+    @Test
     void testPerformance() throws Exception {
         AtomicLong totalLatency;
         AtomicLong shortenCount;

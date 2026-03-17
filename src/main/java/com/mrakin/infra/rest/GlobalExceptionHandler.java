@@ -1,6 +1,7 @@
 package com.mrakin.infra.rest;
 
 import com.mrakin.domain.exception.UrlNotFoundException;
+import com.mrakin.domain.exception.UrlValidationException;
 import io.github.resilience4j.ratelimiter.RequestNotPermitted;
 import lombok.extern.slf4j.Slf4j;
 import java.time.LocalDateTime;
@@ -20,6 +21,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<String> handleUrlNotFoundException(UrlNotFoundException ex) {
         log.error("URL not found: {}", ex.getMessage());
         return new ResponseEntity<>(ex.getMessage(), HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(UrlValidationException.class)
+    public ResponseEntity<String> handleUrlValidationException(UrlValidationException ex) {
+        log.warn("Validation failed: {}", ex.getMessage());
+        return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(RequestNotPermitted.class)

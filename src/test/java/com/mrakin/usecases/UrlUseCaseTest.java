@@ -9,11 +9,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.mrakin.domain.exception.UrlNotFoundException;
+import com.mrakin.domain.exception.UrlValidationException;
 import com.mrakin.domain.model.Url;
 import com.mrakin.domain.ports.UrlRepositoryPort;
 import com.mrakin.usecases.generator.ShortCodeGenerator;
+import com.mrakin.usecases.validation.MaxLengthUrlValidator;
+import com.mrakin.usecases.validation.NotEmptyUrlValidator;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,11 +44,13 @@ class UrlUseCaseTest {
 
     private ShortenUrlUseCase shortenUrlUseCase;
     private GetOriginalUrlUseCase getOriginalUrlUseCase;
+    private List<com.mrakin.usecases.validation.UrlValidator> urlValidators;
 
     @BeforeEach
     void setUp() {
         when(meterRegistry.counter(any())).thenReturn(counter);
-        shortenUrlUseCase = new ShortenUrlUseCase(urlRepositoryPort, shortCodeGenerator, meterRegistry, 10000L);
+        urlValidators = List.of(new NotEmptyUrlValidator(), new MaxLengthUrlValidator(2048));
+        shortenUrlUseCase = new ShortenUrlUseCase(urlRepositoryPort, shortCodeGenerator, urlValidators, meterRegistry, 10000L);
         getOriginalUrlUseCase = new GetOriginalUrlUseCase(urlRepositoryPort, meterRegistry);
     }
 
@@ -113,7 +119,7 @@ class UrlUseCaseTest {
     void shorten_LimitReached_ShouldDeleteOldestAndSave() {
         String url = "https://example.com";
         String code = "short123";
-        shortenUrlUseCase = new ShortenUrlUseCase(urlRepositoryPort, shortCodeGenerator, meterRegistry, 5L);
+        shortenUrlUseCase = new ShortenUrlUseCase(urlRepositoryPort, shortCodeGenerator, urlValidators, meterRegistry, 5L);
         when(urlRepositoryPort.findByOriginalUrl(url)).thenReturn(Optional.empty());
         when(urlRepositoryPort.count()).thenReturn(5L);
         when(shortCodeGenerator.generate(url)).thenReturn(code);
@@ -126,5 +132,18 @@ class UrlUseCaseTest {
         verify(urlRepositoryPort).deleteOldest();
         verify(urlRepositoryPort).save(any());
         verify(urlRepositoryPort, never()).updateLastAccessed(any());
+    }
+
+    @Test
+    void shorten_EmptyUrl_ShouldThrowValidationException() {
+        assertThrows(UrlValidationException.class, () -> shortenUrlUseCase.shorten(""));
+        assertThrows(UrlValidationException.class, () -> shortenUrlUseCase.shorten(null));
+        assertThrows(UrlValidationException.class, () -> shortenUrlUseCase.shorten("   "));
+    }
+
+    @Test
+    void shorten_TooLongUrl_ShouldThrowValidationException() {
+        String longUrl = "a".repeat(2049);
+        assertThrows(UrlValidationException.class, () -> shortenUrlUseCase.shorten(longUrl));
     }
 }

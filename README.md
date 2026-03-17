@@ -18,6 +18,10 @@ A high-performance, scalable URL shortener service built with Spring Boot 3, fol
 - **Storage Management**:
   - Configurable URL limit (`app.url-limit`).
   - Automatic LRU (Least Recently Used) eviction policy: when the limit is reached, the oldest record based on `lastAccessed` is removed.
+- **Input Validation**:
+  - **NotEmpty**: Ensures the URL is not null or empty.
+  - **MaxLength**: Enforces a configurable maximum URL length (`app.max-url-length`).
+  - **Extensible Architecture**: Easy to add new validators by implementing the `UrlValidator` interface and making them Spring Beans.
 - **Cloud Native**:
   - Kubernetes-ready with Liveness and Readiness probes.
   - Prometheus metrics for monitoring:
@@ -92,11 +96,17 @@ The `urls` table structure:
 # Run benchmarks
 java -cp "target/classes:$(mvn dependency:build-classpath | grep -v '[INFO]')" org.openjdk.jmh.Main ShortCodeGeneratorBenchmark
 ```
+Current results:
+Benchmark                                      Mode  Cnt          Score           Error  Units
+ShortCodeGeneratorBenchmark.testBase62        thrpt    3   41602031,095 ± 120176364,039  ops/s
+ShortCodeGeneratorBenchmark.testRandomString  thrpt    3  113087667,077 ±  56660206,818  ops/s
+ShortCodeGeneratorBenchmark.testSha256        thrpt    3   10464639,705 ±  30578843,951  ops/s
 
 ## Configuration
 
 Key properties in `application.yml`:
 - `app.url-limit`: Storage capacity.
+- `app.max-url-length`: Maximum length of the input URL (default 2048).
 - `app.generator.name`: Selected generator (`sha256Generator`, `randomStringGenerator`, `base62Generator`).
 - `app.short-code-length`: Length of codes.
 - `logging.loki.url`: URL for Grafana Loki.

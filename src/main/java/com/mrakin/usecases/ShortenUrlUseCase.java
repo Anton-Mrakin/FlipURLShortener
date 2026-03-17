@@ -3,9 +3,11 @@ package com.mrakin.usecases;
 import com.mrakin.domain.model.Url;
 import com.mrakin.domain.ports.UrlRepositoryPort;
 import com.mrakin.usecases.generator.ShortCodeGenerator;
+import com.mrakin.usecases.validation.UrlValidator;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.github.resilience4j.retry.annotation.Retry;
+import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -19,17 +21,20 @@ public class ShortenUrlUseCase {
 
     private final UrlRepositoryPort urlRepositoryPort;
     private final ShortCodeGenerator shortCodeGenerator;
+    private final List<UrlValidator> urlValidators;
     private final long urlLimit;
     private final Counter shortenCounter;
 
     public ShortenUrlUseCase(UrlRepositoryPort urlRepositoryPort,
                              @Qualifier("selectedShortCodeGenerator")
                              ShortCodeGenerator shortCodeGenerator,
+                             List<UrlValidator> urlValidators,
                              MeterRegistry meterRegistry,
                              @Value("${app.url-limit:10000}")
                              long urlLimit) {
         this.urlRepositoryPort = urlRepositoryPort;
         this.shortCodeGenerator = shortCodeGenerator;
+        this.urlValidators = urlValidators;
         this.urlLimit = urlLimit;
         this.shortenCounter = meterRegistry.counter("url.shorten.requests");
         
@@ -40,6 +45,7 @@ public class ShortenUrlUseCase {
     @Transactional
     @Retry(name = "shortenRetry")
     public Url shorten(String originalUrl) {
+        urlValidators.forEach(v -> v.validate(originalUrl));
         shortenCounter.increment();
         log.info("Shortening URL: {}", originalUrl);
         
