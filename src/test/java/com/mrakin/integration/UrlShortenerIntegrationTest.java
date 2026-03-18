@@ -252,11 +252,7 @@ class UrlShortenerIntegrationTest {
         jpaUrlRepository.deleteAll();
         
         int smallLimit = 5;
-        // Since it's @Value in Aspect, we can't easily change it here without reflections 
-        // OR we can just use the current limit from application-test.yml
-        // But let's assume limit is 10 for this specific scenario.
-        
-        // I'll use ReflectionTestUtils to set the limit in the Aspect for this test
+        // Override the limit in UrlLimitAspect using reflection for testing purposes.
         com.mrakin.infra.aspect.UrlLimitAspect aspect = applicationContext.getBean(com.mrakin.infra.aspect.UrlLimitAspect.class);
         org.springframework.test.util.ReflectionTestUtils.setField(aspect, "urlLimit", (long) smallLimit);
         
@@ -311,16 +307,14 @@ class UrlShortenerIntegrationTest {
                     
             org.springframework.test.util.ReflectionTestUtils.setField(shortenUseCase, "shortCodeGenerator", mockGenerator);
             
-            // 1. Save first URL -> will get shortCode "duplicate"
+            // 1. Create initial URL that will cause a future collision.
             mockMvc.perform(post("/api/v1/urls/shorten")
                             .contentType(MediaType.TEXT_PLAIN)
                             .content("https://collision1.com"))
                     .andExpect(status().isOk())
                     .andExpect(content().string("duplicate"));
             
-            // 2. Prepare mock for the second URL shorten call.
-            // First attempt: returns "duplicate" -> DB collision -> Retry
-            // Second attempt: returns "unique" -> Success
+            // 2. Mock generator to return a duplicate code on first attempt and a unique one on retry.
             Mockito.when(mockGenerator.generate("https://collision2.com"))
                     .thenReturn("duplicate")
                     .thenReturn("unique");

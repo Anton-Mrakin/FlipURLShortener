@@ -1,120 +1,100 @@
-# FlipURLShortener
+# Flip URL Shortener
 
-A high-performance, scalable URL shortener service built with Spring Boot 3, following Clean Architecture principles.
+A high-performance, resilient URL shortening service built with Spring Boot, leveraging Hexagonal Architecture and modern observability tools.
+
+## Table of Contents
+- [Features](#features)
+- [Architecture](#architecture)
+- [Tech Stack](#tech-stack)
+- [Observability](#observability)
+- [Performance & Benchmarks](#performance--benchmarks)
+- [Configuration](#configuration)
+- [Getting Started](#getting-started)
+- [API Reference](#api-reference)
 
 ## Features
-
-- **Flexible Code Generation**: Supports multiple strategies for short code generation:
-  - **SHA-256**: Deterministic (same URL always gives same code), URL-safe Base64 encoded.
-  - **Random String**: Purely random alphanumeric strings.
-  - **Base62**: Encodes random 64-bit integers into Base62 strings.
-- **Retrieve URL**: Retrieves the original URL using the short code and updates `lastAccessed` timestamp.
-- **Clean Architecture**: Strict separation between Domain, Use Cases, and Infrastructure layers.
-- **High Performance**: Optimized for high concurrency with parallel processing, optimistic locking, and metrics.
-- **Resilience**:
-  - **Rate Limiting**: Protects the shortening endpoint using Resilience4j.
-  - **Optimistic Locking**: Ensures data consistency with automatic exponential backoff retries (Resilience4j) on conflicts (ObjectOptimisticLockingFailureException).
-  - **Data Integrity**: Handles concurrent creation of the same URL or code collisions via Retry policies. If a duplicate `original_url` or `short_code` is detected during save, the operation is retried.
-- **Transaction & Isolation**:
-  - **Global Isolation Level**: `TRANSACTION_READ_COMMITTED` (configured via HikariCP).
-  - **Optimized Flow**: Checking for existing URLs (`findByOriginalUrl`) is performed outside of transactions. Transactions are only used for the actual saving of new records, reducing lock duration.
-- **Storage Management**:
-  - Configurable URL limit (`app.url-limit`).
-  - **Asynchronous LRU Eviction**: When the limit is reached, an asynchronous task (`UrlLimitAspect`) handles the deletion of records exceeding the limit (based on `lastAccessed`).
-  - **Periodic Maintenance**: A scheduled task (`UrlMaintenanceService`) runs every minute (`PT1M`) as a safeguard to ensure the storage limit is maintained, even if asynchronous cleanup fails. Both tasks have a 60-second timeout to prevent hanging.
-- **Input Validation**:
-  - **NotEmpty**: Ensures the URL is not null or empty.
-  - **MaxLength**: Enforces a configurable maximum URL length (`app.max-url-length`).
-  - **Extensible Architecture**: Easy to add new validators by implementing the `UrlValidator` interface and making them Spring Beans.
-- **Cloud Native**:
-  - Kubernetes-ready with Liveness and Readiness probes.
-  - Prometheus metrics for monitoring:
-    - `url_count`: Total stored URLs.
-    - `url_shorten_requests_total`: Counter for shorten requests.
-    - `url_get_requests_total`: Counter for retrieval requests.
-- **Observability**:
-  - **Loki Integration**: Logs are sent to Grafana Loki for centralized log management.
-  - **Tracing**: Distributed tracing support with `X-Request-ID` header and MDC logging.
-- **Database**: PostgreSQL with Flyway for versioned migrations.
-
-## Tech Stack
-
-- **Java 21** (GraalVM compatible)
-- **Spring Boot 3.3.4**
-- **Data JPA / Hibernate**
-- **PostgreSQL**
-- **FlywayDB**
-- **Lombok**
-- **MapStruct**
-- **Resilience4j** (Retry, RateLimiter)
-- **Micrometer / Prometheus**
-- **Loki Logback Appender**
-- **Testcontainers** (for integration testing)
-- **JMH** (for micro-benchmarking)
+- **Deterministic Shortening**: Same URL always yields the same short code using SHA-256.
+- **Multiple Strategies**: Supports SHA-256, Random String, and Base62 generators.
+- **High Throughput**: Optimized for high concurrent read/write loads with Redis caching.
+- **Resilience**: Built-in Rate Limiting and Retry mechanisms using Resilience4j.
+- **Event-Driven**: Integration with Kafka and ActiveMQ for URL access tracking using the Transactional Outbox pattern.
+- **Self-Maintenance**: Automatic asynchronous LRU eviction and periodic cleanup to maintain storage limits.
+- **Observability**: Full instrumentation with Prometheus metrics and Loki logs.
+- **Cloud Native**: Kubernetes-ready with Liveness and Readiness probes.
 
 ## Architecture
+The project follows **Hexagonal Architecture** (Ports and Adapters) to ensure business logic is decoupled from infrastructure:
+- `domain`: Core models and business rules. Zero external dependencies.
+- `usecases`: Implementation of application logic (Shorten, Resolve).
+- `infra`: Adapters for Database (PostgreSQL), Cache (Redis), Messaging (Kafka/ActiveMQ), and REST API.
 
-The project is structured according to **Clean Architecture**:
+### Transactional Outbox
+Ensures reliable message delivery to Kafka/ActiveMQ even during database or network failures. Uses `transaction-outbox` library for robust implementation.
 
-- `com.mrakin.domain`: Domain models (`Url`), exceptions, and repository ports. Zero external dependencies.
-- `com.mrakin.usecases`: Business logic (`ShortenUrlUseCase`, `GetOriginalUrlUseCase`) and code generators.
-- `com.mrakin.infra`: Implementation details:
-  - `db`: Persistence (JPA, Flyway migrations, entities).
-  - `rest`: API layer (Controllers, Filters, Exception Handling).
+## Tech Stack
+- **Framework**: Spring Boot 3.3.4
+- **Language**: Java 21
+- **Database**: PostgreSQL 16 (with Flyway migrations)
+- **Cache**: Redis 7
+- **Messaging**: Apache Kafka / ActiveMQ
+- **Resilience**: Resilience4j (Retry, RateLimiter)
+- **Observability**: Prometheus, Grafana, Loki, Micrometer
+- **Testing**: JUnit 5, Testcontainers, Mockito, JMH
 
-## Database Schema
+## Observability
+The service is fully instrumented for production monitoring:
+- **Metrics**: Available at `/actuator/prometheus`. Tracks `url_count`, request counters, and latencies.
+- **Logging**: Integrated with Grafana Loki for centralized log aggregation.
+- **Health Checks**: Standard Spring Boot Actuator `/health` (Liveness/Readiness) and `/info` endpoints.
 
-The `urls` table structure:
-- `id` (BIGINT): Primary Key, auto-generated identity.
-- `short_code` (VARCHAR): Unique short identifier.
-- `original_url` (TEXT): Unique original URL.
-- `created_at` (TIMESTAMP): Creation time.
-- `last_accessed` (TIMESTAMP): Last time the URL was retrieved or shortened.
-- `version` (BIGINT): Version field for optimistic locking.
+## Performance & Benchmarks
+The service has been benchmarked using JMH for generator performance.
 
-## API Endpoints
+### Generator Benchmarks (JMH)
+| Benchmark | Mode | Score (ops/s) |
+|-----------|------|---------------|
+| Base62    | thrpt| ~41,600,000   |
+| Random    | thrpt| ~113,000,000  |
+| SHA-256   | thrpt| ~10,400,000   |
 
-### Shorten URL
-- **URL**: `POST /api/v1/urls/shorten`
-- **Content-Type**: `text/plain`
-- **Body**: The long URL string.
-- **Response**: `200 OK` with the short code string.
+### Integration Load Test Results
+- **Avg Latency**: ~430 ms
+- **Throughput**: ~2,260 req/sec
+*(Tested on local environment with concurrent clients)*
 
-### Retrieve URL
-- **URL**: `GET /api/v1/urls/{shortCode}`
-- **Response**: `200 OK` with the original URL string.
+## Configuration
+Key properties in `application.yml`:
+- `app.url-limit`: Maximum storage capacity.
+- `app.max-url-length`: Maximum length of input URL (default 2048).
+- `app.generator.name`: Selected generator (`sha256Generator`, `randomStringGenerator`, `base62Generator`).
+- `app.short-code-length`: Configurable length for short codes.
 
-## Development & Testing
+## Getting Started
 
-### Running Tests
-- **Unit Tests**: `UrlUseCaseTest`, `ShortCodeGeneratorTest`.
-- **Integration Tests**: `UrlShortenerIntegrationTest` (PostgreSQL via Testcontainers).
-- **Performance Tests**: Integrated into `UrlShortenerIntegrationTest` with assertions on latency and throughput.
-- **Benchmarks**: JMH tests in `src/main/java/com/mrakin/benchmark/` for generator performance comparison.
+### Prerequisites
+- Docker & Docker Compose
+- JDK 21
+- Maven
 
-### Building & Running
+### Build & Run
 ```bash
 # Build the project
 ./mvnw clean package
 
-# Run benchmarks
-java -cp "target/classes:$(mvn dependency:build-classpath | grep -v '[INFO]')" org.openjdk.jmh.Main ShortCodeGeneratorBenchmark
+# Run with all infrastructure
+docker-compose up -d
 ```
-Current results:
-Benchmark                                      Mode  Cnt          Score           Error  Units
-ShortCodeGeneratorBenchmark.testBase62        thrpt    3   41602031,095 ± 120176364,039  ops/s
-ShortCodeGeneratorBenchmark.testRandomString  thrpt    3  113087667,077 ±  56660206,818  ops/s
-ShortCodeGeneratorBenchmark.testSha256        thrpt    3   10464639,705 ±  30578843,951  ops/s
 
-## Configuration
+## API Reference
 
-Key properties in `application.yml`:
-- `app.url-limit`: Storage capacity.
-- `app.max-url-length`: Maximum length of the input URL (default 2048).
-- `app.generator.name`: Selected generator (`sha256Generator`, `randomStringGenerator`, `base62Generator`).
-- `app.short-code-length`: Length of codes.
-- `logging.loki.url`: URL for Grafana Loki.
+### Shorten URL
+`POST /api/v1/urls/shorten`
+- **Request**: `String` (Plain text URL)
+- **Response**: `200 OK` with short code.
 
+### Resolve URL
+`GET /api/v1/urls/{shortCode}`
+- **Response**: `200 OK` with original URL.
 
-Performance Results
-Avg Latency = 433.41565 ms, Throughput = 2260.7044355021026 req/sec
+---
+Developed as a high-performance demonstration project.
