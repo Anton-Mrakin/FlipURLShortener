@@ -5,19 +5,18 @@ import com.mrakin.domain.ports.UrlRepositoryPort;
 import com.mrakin.infra.db.entity.UrlEntity;
 import com.mrakin.infra.db.mapper.UrlDbMapper;
 import com.mrakin.infra.db.repository.JpaUrlRepository;
-import java.time.LocalDateTime;
-import java.util.Optional;
-import lombok.extern.slf4j.Slf4j;
 import io.github.resilience4j.retry.annotation.Retry;
 import io.micrometer.core.instrument.MeterRegistry;
-import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.Optional;
 
 @Slf4j
 @Component
 public class UrlRepositoryAdapter implements UrlRepositoryPort {
-
     private final JpaUrlRepository jpaUrlRepository;
     private final UrlDbMapper urlDbMapper;
 
@@ -52,7 +51,6 @@ public class UrlRepositoryAdapter implements UrlRepositoryPort {
     @Override
     @Transactional(timeout = 60)
     @Retry(name = "dbRetry")
-//    @SchedulerLock(name = "cleanupShortUrls", lockAtMostFor = "1m", lockAtLeastFor = "10s")
     public long deleteOldest(long urlLimit) {
         return jpaUrlRepository.deleteOldestRecords(urlLimit);
     }

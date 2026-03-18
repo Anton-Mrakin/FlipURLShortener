@@ -1,7 +1,9 @@
 package com.mrakin.infra.aspect;
 
-import com.mrakin.domain.event.UrlAccessedEvent;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gruelbox.transactionoutbox.TransactionOutbox;
 import com.mrakin.domain.model.Url;
+import com.mrakin.infra.outbox.OutboxPublisher;
 import com.mrakin.usecases.UrlAccessedKafkaEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -9,7 +11,6 @@ import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.annotation.AfterReturning;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.expression.ExpressionParser;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
@@ -23,7 +24,8 @@ import java.lang.reflect.Method;
 @RequiredArgsConstructor
 public class KafkaOutboxAspect {
 
-    private final ApplicationEventPublisher eventPublisher;
+    private final TransactionOutbox outbox;
+    private final ObjectMapper objectMapper;
     private final ExpressionParser parser = new SpelExpressionParser();
 
     @AfterReturning(pointcut = "@annotation(urlAccessed)", returning = "result")
@@ -31,14 +33,15 @@ public class KafkaOutboxAspect {
         if (result instanceof Url url) {
             log.debug("Intercepted URL access for short code: {}", url.getShortCode());
             
-            // Если в аннотации указан ключ через SpEL, мы могли бы его использовать, 
-            // но в нашей задаче партиционирование идет по домену из Url POJO.
-            // Тем не менее, пробросим ключ, если он нужен для других целей.
             String key = evaluateKey(joinPoint, urlAccessed.key());
             
-            // Публикуем событие в контекст Spring.
-            // Spring Modulith подхватит его, сохранит в таблицу и отправит в Kafka.
-            eventPublisher.publishEvent(new UrlAccessedEvent(url));
+            try {
+                String urlJson = objectMapper.writeValueAsString(url);
+                outbox.with().schedule(OutboxPublisher.class).publishUrlAccessed(urlJson, key);
+                log.debug("Scheduled Kafka outbox event for URL: {}", url.getOriginalUrl());
+            } catch (Exception e) {
+                log.error("Failed to schedule Kafka outbox event", e);
+            }
         }
     }
 

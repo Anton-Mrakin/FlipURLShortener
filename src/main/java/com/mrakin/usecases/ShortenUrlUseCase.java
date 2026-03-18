@@ -4,16 +4,15 @@ import com.mrakin.domain.model.Url;
 import com.mrakin.domain.ports.UrlRepositoryPort;
 import com.mrakin.usecases.generator.ShortCodeGenerator;
 import com.mrakin.usecases.validation.UrlValidator;
-import com.mrakin.usecases.CleanupUrlLimit;
+import io.github.resilience4j.retry.annotation.Retry;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
-import io.github.resilience4j.retry.annotation.Retry;
-import java.util.List;
 import lombok.extern.slf4j.Slf4j;
-
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Slf4j
 @Service
@@ -37,6 +36,7 @@ public class ShortenUrlUseCase {
 
     @Retry(name = "shortenRetry")
     @CleanupUrlLimit
+    @UrlShortenedActiveMQEvent
     public Url shorten(String originalUrl) {
         urlValidators.forEach(v -> v.validate(originalUrl));
         shortenCounter.increment();

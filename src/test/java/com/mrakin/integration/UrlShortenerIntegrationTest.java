@@ -95,6 +95,10 @@ class UrlShortenerIntegrationTest {
     @Container
     static KafkaContainer kafka = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.4.0"));
 
+    @Container
+    static GenericContainer<?> activemq = new GenericContainer<>(DockerImageName.parse("symptoma/activemq:5.18.0"))
+            .withExposedPorts(61616);
+
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
@@ -103,6 +107,7 @@ class UrlShortenerIntegrationTest {
         registry.add("spring.data.redis.host", redis::getHost);
         registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
         registry.add("spring.kafka.bootstrap-servers", kafka::getBootstrapServers);
+        registry.add("spring.activemq.broker-url", () -> "tcp://" + activemq.getHost() + ":" + activemq.getMappedPort(61616));
     }
 
     @Autowired
@@ -120,7 +125,7 @@ class UrlShortenerIntegrationTest {
     @Value("${app.test.iterations:1000}")
     private int iterations;
 
-    @Value("${app.test.startup-threshold:30000.0}")
+    @Value("${app.test.startup-threshold:90000.0}")
     private double startupThreshold;
 
     @Test

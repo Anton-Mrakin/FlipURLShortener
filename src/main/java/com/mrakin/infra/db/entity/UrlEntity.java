@@ -42,9 +42,6 @@ public class UrlEntity {
     @Column(name = "last_accessed", nullable = false)
     private LocalDateTime lastAccessed;
 
-    @Version
-    private Long version;
-
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
