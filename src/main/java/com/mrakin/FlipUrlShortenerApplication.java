@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 import javax.sql.DataSource;
 import java.util.Map;
+import java.util.concurrent.ThreadPoolExecutor;
 
 @SpringBootApplication
 @EnableTransactionManagement
@@ -57,10 +58,11 @@ public class FlipUrlShortenerApplication {
     @Bean(name = "cleanupExecutor")
     public ThreadPoolTaskExecutor cleanupExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(2);
-        executor.setMaxPoolSize(2);
-        executor.setQueueCapacity(1);
-        executor.setThreadNamePrefix("cleanup-worker-");
+        executor.setCorePoolSize(8);
+        executor.setMaxPoolSize(21);
+        executor.setQueueCapacity(200);
+        executor.setThreadNamePrefix("cleanup-action-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
         executor.initialize();
         return executor;
     }
