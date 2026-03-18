@@ -252,9 +252,9 @@ class UrlShortenerIntegrationTest {
         jpaUrlRepository.deleteAll();
         
         int smallLimit = 5;
-        // Override the limit in UrlLimitAspect using reflection for testing purposes.
-        com.mrakin.infra.aspect.UrlLimitAspect aspect = applicationContext.getBean(com.mrakin.infra.aspect.UrlLimitAspect.class);
-        org.springframework.test.util.ReflectionTestUtils.setField(aspect, "urlLimit", (long) smallLimit);
+        // Override the limit in UrlMaintenanceService using reflection for testing purposes.
+        com.mrakin.infra.maintenance.UrlMaintenanceService maintenanceService = applicationContext.getBean(com.mrakin.infra.maintenance.UrlMaintenanceService.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(maintenanceService, "urlLimit", (long) smallLimit);
         
         for (int i = 0; i < smallLimit + 5; i++) {
             mockMvc.perform(post("/api/v1/urls/shorten")
@@ -271,7 +271,7 @@ class UrlShortenerIntegrationTest {
         
         // Restore original limit (from config)
         long originalLimit = applicationContext.getEnvironment().getProperty("app.url-limit", Long.class, 10000L);
-        org.springframework.test.util.ReflectionTestUtils.setField(aspect, "urlLimit", originalLimit);
+        org.springframework.test.util.ReflectionTestUtils.setField(maintenanceService, "urlLimit", originalLimit);
     }
     @Test
     void testUrlValidation() throws Exception {

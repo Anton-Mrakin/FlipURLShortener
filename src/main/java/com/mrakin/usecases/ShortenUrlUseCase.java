@@ -34,6 +34,7 @@ public class ShortenUrlUseCase {
         this.shortenCounter = meterRegistry.counter("url.shorten.requests");
     }
 
+    @Transactional
     @Retry(name = "shortenRetry")
     @CleanupUrlLimit
     @UrlShortenedActiveMQEvent
