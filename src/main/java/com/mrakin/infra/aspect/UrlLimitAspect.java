@@ -20,7 +20,7 @@ public class UrlLimitAspect {
     @Value("${app.url-limit:10000}")
     private long urlLimit;
 
-    @Async
+    @Async("cleanupExecutor")
     @AfterReturning(pointcut = "@annotation(com.mrakin.usecases.CleanupUrlLimit)")
     public void manageUrlLimit() {
         try {

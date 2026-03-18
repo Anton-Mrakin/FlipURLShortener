@@ -52,7 +52,7 @@ public class UrlRepositoryAdapter implements UrlRepositoryPort {
     @Override
     @Transactional(timeout = 60)
     @Retry(name = "dbRetry")
-    @SchedulerLock(name = "cleanupShortUrls", lockAtMostFor = "1m", lockAtLeastFor = "10s")
+//    @SchedulerLock(name = "cleanupShortUrls", lockAtMostFor = "1m", lockAtLeastFor = "10s")
     public long deleteOldest(long urlLimit) {
         return jpaUrlRepository.deleteOldestRecords(urlLimit);
     }
