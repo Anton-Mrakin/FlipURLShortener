@@ -1,4 +1,4 @@
-# Flip URL Shortener
+# Full URL Shortener
 
 A high-performance, resilient URL shortening service built with Spring Boot, leveraging Hexagonal Architecture and modern observability tools.
 
