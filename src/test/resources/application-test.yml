@@ -7,6 +7,35 @@ spring:
     redis:
       host: localhost
       port: 6379
+    cassandra:
+      # Disable auto-configuration completely
+      repositories:
+        enabled: false
+  datasource:
+    hikari:
+      # Reduce connection timeout for tests to fail fast during shutdown
+      connection-timeout: 1000
+      validation-timeout: 1000
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.cassandra.CassandraAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.cassandra.CassandraDataAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.cassandra.CassandraReactiveDataAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.cassandra.CassandraReactiveRepositoriesAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.cassandra.CassandraRepositoriesAutoConfiguration
+  task:
+    scheduling:
+      # Disable scheduled tasks in tests to prevent errors after test containers stop
+      enabled: false
+
+cassandra:
+  enabled: false
+
+kafka:
+  enabled: false
+
+activemq:
+  enabled: false
 
 app:
   url-limit: 100000

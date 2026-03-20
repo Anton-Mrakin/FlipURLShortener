@@ -50,6 +50,8 @@ public class ActiveMQOutboxIntegrationTest {
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
         registry.add("spring.activemq.broker-url", () -> "tcp://" + activemq.getHost() + ":" + activemq.getMappedPort(61616));
+        // Enable ActiveMQ for this test
+        registry.add("activemq.enabled", () -> "true");
         // Disable Kafka and Redis for this test
         registry.add("spring.kafka.bootstrap-servers", () -> "localhost:9092");
         registry.add("spring.cache.type", () -> "none");

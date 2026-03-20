@@ -4,6 +4,7 @@ import com.datastax.oss.driver.api.core.CqlSession;
 import com.datastax.oss.driver.api.core.CqlSessionBuilder;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.cassandra.config.AbstractCassandraConfiguration;
@@ -15,6 +16,7 @@ import java.util.Collections;
 import java.util.List;
 
 @Configuration
+@ConditionalOnProperty(name = "cassandra.enabled", havingValue = "true", matchIfMissing = true)
 @Slf4j
 public class CassandraConfig extends AbstractCassandraConfiguration {
 

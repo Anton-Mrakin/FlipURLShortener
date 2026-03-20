@@ -9,6 +9,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Slf4j
-@SpringBootTest
+@SpringBootTest(properties = "kafka.enabled=true")
 @Testcontainers
 @ActiveProfiles("test")
 public class KafkaOutboxIntegrationTest {
@@ -79,6 +80,18 @@ public class KafkaOutboxIntegrationTest {
 
         consumer = new KafkaConsumer<>(props);
         consumer.subscribe(Collections.singletonList("url-accessed"));
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (consumer != null) {
+            try {
+                consumer.close(Duration.ofSeconds(5));
+                log.info("Kafka consumer closed successfully");
+            } catch (Exception e) {
+                log.warn("Error closing Kafka consumer: {}", e.getMessage());
+            }
+        }
     }
 
     @Test

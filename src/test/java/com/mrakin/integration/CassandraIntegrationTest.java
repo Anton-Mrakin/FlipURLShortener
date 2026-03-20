@@ -22,7 +22,13 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(
+        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = {
+                "spring.autoconfigure.exclude=",
+                "spring.data.cassandra.repositories.enabled=true"
+        }
+)
 @Testcontainers
 @ActiveProfiles("test")
 public class CassandraIntegrationTest {
@@ -44,6 +50,7 @@ public class CassandraIntegrationTest {
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
 
+        registry.add("cassandra.enabled", () -> "true");
         registry.add("cassandra.contact-points", cassandra::getHost);
         registry.add("cassandra.port", () -> cassandra.getMappedPort(9042));
         registry.add("cassandra.local-datacenter", () -> "datacenter1");
@@ -124,15 +131,20 @@ public class CassandraIntegrationTest {
         // Wait for async Cassandra writes
         Thread.sleep(2000);
 
-        // Query and verify ranking - get lowest 2 URLs
+        // Query and verify ranking - get lowest ranked URLs
+        // Note: Due to testcontainers reuse, there might be data from previous test runs
         LocalDate now = LocalDate.now();
         LocalDate threeWeeksAgo = now.minusWeeks(3);
-        Map<String, Double> lowestRankedUrls = cassandraRepository.getLowestRankedUrls(threeWeeksAgo, now, 2);
+        Map<String, Double> lowestRankedUrls = cassandraRepository.getLowestRankedUrls(threeWeeksAgo, now, 100);
 
+        // Verify both our test URLs are present and ranked correctly
         assertThat(lowestRankedUrls).containsKeys(url1, url2);
         // url2 should have lower rank than url1 (0.5 * 2 = 1.0 vs 0.5 * 10 = 5.0)
-        // Since we get lowest ranked, url2 should come first
         assertThat(lowestRankedUrls.get(url2)).isLessThan(lowestRankedUrls.get(url1));
+
+        // Verify exact ranks
+        assertThat(lowestRankedUrls.get(url1)).isEqualTo(5.0); // 0.5 * 10
+        assertThat(lowestRankedUrls.get(url2)).isEqualTo(1.0); // 0.5 * 2
     }
 
     @Test

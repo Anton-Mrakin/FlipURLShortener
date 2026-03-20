@@ -45,7 +45,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
-@SpringBootTest(properties = "spring.cache.type=redis")
+@SpringBootTest(properties = {
+        "spring.cache.type=redis",
+        "spring.task.scheduling.enabled=true"  // Enable scheduling for cleanup tests
+})
 @AutoConfigureMockMvc
 @Testcontainers
 @ActiveProfiles("test")
@@ -125,6 +128,9 @@ class AnmrUrlShortenerIntegrationTest {
 
     @Autowired
     private ApplicationContext applicationContext;
+
+    @Autowired(required = false)
+    private com.mrakin.infra.db.repository.CassandraUrlAccessRepository cassandraRepository;
 
     @Value("${app.test.iterations:1000}")
     private int iterations;

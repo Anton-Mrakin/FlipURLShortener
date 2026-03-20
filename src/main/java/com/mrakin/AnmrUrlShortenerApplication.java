@@ -53,6 +53,8 @@ public class AnmrUrlShortenerApplication {
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
         scheduler.setPoolSize(20);
         scheduler.setThreadNamePrefix("scheduled-task-");
+        scheduler.setWaitForTasksToCompleteOnShutdown(false);
+        scheduler.setAwaitTerminationSeconds(5);
         scheduler.initialize();
         return scheduler;
     }
@@ -65,6 +67,25 @@ public class AnmrUrlShortenerApplication {
         executor.setQueueCapacity(20000);
         executor.setThreadNamePrefix("cleanup-action-");
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
+        executor.setWaitForTasksToCompleteOnShutdown(false);
+        executor.setAwaitTerminationSeconds(1);
+        executor.initialize();
+        return executor;
+    }
+
+    /**
+     * Custom executor for @Async methods (Cassandra, ClickHouse aspects).
+     * Ensures graceful shutdown of async tasks.
+     */
+    @Bean(name = "taskExecutor")
+    public ThreadPoolTaskExecutor asyncExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(10);
+        executor.setMaxPoolSize(20);
+        executor.setQueueCapacity(500);
+        executor.setThreadNamePrefix("async-");
+        executor.setWaitForTasksToCompleteOnShutdown(false);
+        executor.setAwaitTerminationSeconds(5);
         executor.initialize();
         return executor;
     }
