@@ -86,18 +86,22 @@ class UrlShortenerIntegrationTest {
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
             .withDatabaseName("shortener")
             .withUsername("user")
-            .withPassword("password");
+            .withPassword("password")
+            .withReuse(true);
 
     @Container
     static GenericContainer<?> redis = new GenericContainer<>(DockerImageName.parse("redis:7.0-alpine"))
-            .withExposedPorts(6379);
+            .withExposedPorts(6379)
+            .withReuse(true);
 
     @Container
-    static KafkaContainer kafka = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.4.0"));
+    static KafkaContainer kafka = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.4.0"))
+            .withReuse(true);
 
     @Container
     static GenericContainer<?> activemq = new GenericContainer<>(DockerImageName.parse("symptoma/activemq:5.18.0"))
-            .withExposedPorts(61616);
+            .withExposedPorts(61616)
+            .withReuse(true);
 
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {

@@ -33,14 +33,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class ActiveMQOutboxIntegrationTest {
 
     @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:latest")
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
             .withDatabaseName("shortener")
             .withUsername("user")
-            .withPassword("password");
+            .withPassword("password")
+            .withReuse(true);
 
     @Container
-    static GenericContainer<?> activemq = new GenericContainer<>(DockerImageName.parse("symptoma/activemq:latest"))
-            .withExposedPorts(61616);
+    static GenericContainer<?> activemq = new GenericContainer<>(DockerImageName.parse("symptoma/activemq:5.18.0"))
+            .withExposedPorts(61616)
+            .withReuse(true);
 
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
