@@ -65,4 +65,16 @@ public class UrlRepositoryAdapter implements UrlRepositoryPort {
                     jpaUrlRepository.save(entity);
                 });
     }
+
+    @Override
+    public long count() {
+        return jpaUrlRepository.count();
+    }
+
+    @Override
+    @Transactional
+    @Retry(name = "dbRetry")
+    public void deleteByOriginalUrl(String originalUrl) {
+        jpaUrlRepository.deleteByOriginalUrl(originalUrl);
+    }
 }

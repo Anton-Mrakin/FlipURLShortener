@@ -10,4 +10,6 @@ public interface UrlRepositoryPort {
     Optional<Url> findByOriginalUrl(String originalUrl);
     long deleteOldest(long urlLimit);
     void updateLastAccessed(String shortCode);
+    long count();
+    void deleteByOriginalUrl(String originalUrl);
 }

@@ -27,4 +27,7 @@ public interface JpaUrlRepository extends JpaRepository<UrlEntity, Long> {
     @Modifying
     @Query(value = "DELETE FROM urls WHERE id IN (SELECT id FROM urls ORDER BY last_accessed DESC OFFSET :urlLimit ROWS)", nativeQuery = true)
     int deleteOldestRecords(@Param("urlLimit") long urlLimit);
+
+    @Modifying
+    void deleteByOriginalUrl(String originalUrl);
 }

@@ -75,6 +75,23 @@ services:
         soft: 262144
         hard: 262144
 
+  cassandra:
+    image: cassandra:4.1
+    container_name: anmr-cassandra
+    ports:
+      - "9042:9042"
+    environment:
+      CASSANDRA_CLUSTER_NAME: anmr-cluster
+      CASSANDRA_DC: datacenter1
+      CASSANDRA_ENDPOINT_SNITCH: GossipingPropertyFileSnitch
+    volumes:
+      - cassandra_data:/var/lib/cassandra
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh -e 'describe cluster'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
   prometheus:
     image: prom/prometheus:latest
     container_name: anmr-prometheus
@@ -118,6 +135,7 @@ services:
       ACTIVEMQ_HOST: activemq
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       CLICKHOUSE_URL: jdbc:clickhouse:http://clickhouse:8123/default
+      CASSANDRA_CONTACT_POINTS: cassandra
       LOKI_URL: http://loki:3100/loki/api/v1/push
     depends_on:
       postgres:
@@ -130,11 +148,14 @@ services:
         condition: service_started
       clickhouse:
         condition: service_started
+      cassandra:
+        condition: service_healthy
 
 volumes:
   postgres_data:
   redis_data:
   clickhouse_data:
+  cassandra_data:
   loki_data:
   prometheus_data:
   grafana_data:

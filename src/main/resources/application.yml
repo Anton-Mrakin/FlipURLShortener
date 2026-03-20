@@ -72,6 +72,13 @@ clickhouse:
   user: ${CLICKHOUSE_USER:default}
   password: ${CLICKHOUSE_PASSWORD:}
 
+cassandra:
+  contact-points: ${CASSANDRA_CONTACT_POINTS:localhost}
+  port: ${CASSANDRA_PORT:9042}
+  keyspace: ${CASSANDRA_KEYSPACE:url_shortener}
+  local-datacenter: ${CASSANDRA_DATACENTER:datacenter1}
+  shard-count: 10
+
 app:
   url-limit: 10000
   short-code-length: 8
