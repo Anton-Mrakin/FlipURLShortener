@@ -27,9 +27,9 @@ import java.util.concurrent.ThreadPoolExecutor;
 @EnableAsync
 @EnableScheduling
 @EnableSchedulerLock(defaultLockAtMostFor = "1m")
-public class FlipUrlShortenerApplication {
+public class AnmrUrlShortenerApplication {
     public static void main(String[] args) {
-        SpringApplication.run(FlipUrlShortenerApplication.class, args);
+        SpringApplication.run(AnmrUrlShortenerApplication.class, args);
     }
 
     @Bean

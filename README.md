@@ -1,4 +1,4 @@
-# Full URL Shortener
+# ANMR URL Shortener
 
 A high-performance, resilient URL shortening service built with Spring Boot, leveraging Hexagonal Architecture and modern observability tools.
 
@@ -17,6 +17,7 @@ A high-performance, resilient URL shortening service built with Spring Boot, lev
 - **Multiple Strategies**: Supports SHA-256, Random String, and Base62 generators.
 - **High Throughput**: Optimized for high concurrent read/write loads with Redis caching.
 - **Resilience**: Built-in Rate Limiting and Retry mechanisms using Resilience4j.
+- **Analytics**: High-performance URL access logging and aggregation using ClickHouse.
 - **Event-Driven**: Integration with Kafka and ActiveMQ for URL access tracking using the Transactional Outbox pattern.
 - **Self-Maintenance**: Automatic asynchronous LRU eviction and periodic cleanup to maintain storage limits.
 - **Observability**: Full instrumentation with Prometheus metrics and Loki logs.
@@ -37,6 +38,7 @@ Ensures reliable message delivery to Kafka/ActiveMQ even during database or netw
 - **Database**: PostgreSQL 16 (with Flyway migrations)
 - **Cache**: Redis 7
 - **Messaging**: Apache Kafka / ActiveMQ
+- **Analytics**: ClickHouse 23+ (with JDBC integration)
 - **Resilience**: Resilience4j (Retry, RateLimiter)
 - **Observability**: Prometheus, Grafana, Loki, Micrometer
 - **Testing**: JUnit 5, Testcontainers, Mockito, JMH
@@ -68,6 +70,9 @@ Key properties in `application.yml`:
 - `app.max-url-length`: Maximum length of input URL (default 2048).
 - `app.generator.name`: Selected generator (`sha256Generator`, `randomStringGenerator`, `base62Generator`).
 - `app.short-code-length`: Configurable length for short codes.
+- `clickhouse.url`: ClickHouse connection URL.
+- `clickhouse.user`: ClickHouse username.
+- `clickhouse.password`: ClickHouse password.
 
 ## Getting Started
 
@@ -79,7 +84,7 @@ Key properties in `application.yml`:
 ### Build & Run
 ```bash
 # Build the project
-./mvnw clean package
+mvn clean package
 
 # Run with all infrastructure
 docker-compose up -d
@@ -95,6 +100,14 @@ docker-compose up -d
 ### Resolve URL
 `GET /api/v1/urls/{shortCode}`
 - **Response**: `200 OK` with original URL.
+
+### Aggregate URL Stats
+`GET /api/v1/urls/stats/aggregation?originalUrl={url}&from={from}&to={to}`
+- **Parameters**:
+    - `originalUrl`: The full URL to aggregate stats for.
+    - `from`: Start timestamp (ISO_DATE_TIME).
+    - `to`: End timestamp (ISO_DATE_TIME).
+- **Response**: `200 OK` with the count of accesses (Long).
 
 ---
 Developed as a high-performance demonstration project.

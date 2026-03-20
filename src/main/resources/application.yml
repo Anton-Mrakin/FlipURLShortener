@@ -1,6 +1,6 @@
 spring:
   application:
-    name: flip-url-shortener
+    name: anmr-url-shortener
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:5432/shortener
     username: ${DB_USER:user}
@@ -55,7 +55,7 @@ spring:
       properties:
         partitioner.class: com.mrakin.infra.kafka.DomainPartitioner
     consumer:
-      group-id: flip-url-shortener-group
+      group-id: anmr-url-shortener-group
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer

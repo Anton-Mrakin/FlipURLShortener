@@ -49,7 +49,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @AutoConfigureMockMvc
 @Testcontainers
 @ActiveProfiles("test")
-class UrlShortenerIntegrationTest {
+class AnmrUrlShortenerIntegrationTest {
 
     @Autowired
     private RateLimiterRegistry rateLimiterRegistry;
